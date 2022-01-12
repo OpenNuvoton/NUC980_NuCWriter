@@ -62,6 +62,20 @@ int ParseIniFile(char *inifile)
 	n = GetPrivateProfileString("RUN", "all_device", "dummy", str, sizearray(str), inifile);
 	if (n == 3)
 		_devctrl.enable_all_device = 1;
+		
+	_nudata.firmware_update = FALSE;
+	n = GetPrivateProfileString("RUN", "firmware_update", "dummy", str, sizearray(str), inifile);
+	if (n == 3)
+		_nudata.firmware_update = TRUE;
+
+	n = GetPrivateProfileString("RUN", "mode", "dummy", str, sizearray(str), inifile);
+	mode = (MODE_T *)ModeT;
+	while ((mode->pName[0] != '\0') && (n > 1)) {
+		if (!_stricmp(str, mode->pName))
+			break;
+		else
+			mode++;
+	}
 
 	n = GetPrivateProfileString("RUN", "mode", "dummy", str, sizearray(str), inifile);
 	mode = (MODE_T *)ModeT;

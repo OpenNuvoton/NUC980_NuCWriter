@@ -128,6 +128,7 @@ typedef struct _NU_DATA_T {
 	READ_T			read;
 	char			ddr_sbuff[BUF_SIZE];	// ddr settings read from DDR.ini
 	int				ddr_sbuff_len;
+	bool            firmware_update;
 } NU_DATA_T;
 
 typedef struct _DEV_CTRL_T {

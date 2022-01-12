@@ -223,37 +223,38 @@ int Proc_Run_One_Job(int id)
 {
 	BOOLEAN	bSuccess = false, bResult;
 	int		retrycnt;
-	
-	for (retrycnt = 1; retrycnt <= USB_CONN_RETRY_MAX; retrycnt++) {
-		
-		Sleep(200);	//for Mass production
-		bResult = FWDownload(id);
-		Sleep(200);	//for Mass production
-		
-		if (bResult == FALSE) {
-			fprintf(stderr, "T%d: Download FW failed, retry %d\n", id, retrycnt);
-			continue;
-		}
-		else
-			fprintf(stdout, "T%d: Download FW PASS\n", id);
 
-		bResult = WinUsb_ResetFW(id);
-		Sleep(100);  //for Mass production
+	if (_nudata.firmware_update	== FALSE) {
 		
-		if (bResult == FALSE) {
-			fprintf(stderr, "T%d: RESET NUC980 failed, retry: %d\n", id, retrycnt);
-			continue;
+		for (retrycnt = 1; retrycnt <= USB_CONN_RETRY_MAX; retrycnt++) {
+			
+			Sleep(200);	//for Mass production
+			bResult = FWDownload(id);
+			Sleep(200);	//for Mass production
+			
+			if (bResult == FALSE) {
+				fprintf(stderr, "T%d: Download FW failed, retry %d\n", id, retrycnt);
+				continue;
+			}
+			else
+				fprintf(stdout, "T%d: Download FW PASS\n", id);
+    	
+			bResult = WinUsb_ResetFW(id);
+			Sleep(100);  //for Mass production
+			
+			if (bResult == FALSE) {
+				fprintf(stderr, "T%d: RESET NUC980 failed, retry: %d\n", id, retrycnt);
+				continue;
+			}
+			else {
+				fprintf(stdout, "T%d: RESET NUC980 FW PASS\n", id);
+				break;
+			}
 		}
-		else {
-			fprintf(stdout, "T%d: RESET NUC980 FW PASS\n", id);
-			break;
-		}
+		if (retrycnt >= USB_CONN_RETRY_MAX)
+			return -1;
 	}
 	
-	if (retrycnt >= USB_CONN_RETRY_MAX)
-		return -1;
-
-#if 1
 	if (_nudata.mode.id != MODE_SD) {
 		if (InfoFromDevice(id) != 0) {
 			fprintf(stderr, "T%d: InfoFromDevice failed!\n", id);
@@ -261,7 +262,6 @@ int Proc_Run_One_Job(int id)
 		}
 		// dump_info(&(_nudata.user_def));
 	}
-#endif
 
 	switch(_nudata.mode.id) {
 	case MODE_SDRAM:
@@ -285,6 +285,13 @@ int Proc_Run_One_Job(int id)
 		if (UXmodem_SPINAND(id) < 0)
 			return -1;
 		break;
+	}
+
+	if (_nudata.firmware_update == TRUE) {
+		printf("\n\nReset NUC980...\n");
+		WinUsb_ResetFW(id);
+		CloseWinUsbDevice(id);
+		return 0;
 	}
 	
 	if (_WinUsb.WinUsbHandle[id].HandlesOpen == TRUE)

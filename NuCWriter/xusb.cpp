@@ -936,6 +936,26 @@ EXIT:
 	return -1;
 }
 
+
+void dump_buffer(unsigned char *buff, int len)
+{
+	int  i, j;
+	
+	fprintf(stdout, "\n");
+	for (i = 0; i < len; i += 16) {
+		for (j = 0; j < 16; j++)
+			fprintf(stdout, "%02x ", buff[i+j]);
+
+		fprintf(stdout, "    ");
+
+		for (j = 0; j < 16; j++)
+			fprintf(stdout, "%c", buff[i+j]);
+
+		fprintf(stdout, "\n");
+	}
+	fprintf(stdout, "\n");
+}
+
 int UXmodem_SPINOR(int id)
 {
 	int		idx;
@@ -948,6 +968,8 @@ int UXmodem_SPINOR(int id)
 	unsigned int ddrlen;
 	char	*lpBuffer = NULL;
 	unsigned int burn_pos;
+	unsigned int erase_pos = 0;
+	int		wait_pos = 0;
 	USHORT	typeack;
 
 	if (EnableOneWinUsbDevice(id) == FALSE) {
@@ -1067,6 +1089,10 @@ int UXmodem_SPINOR(int id)
 					fprintf(stderr, "File length is zero\n");
 					goto EXIT;
 				}
+
+				NUC_SetType(0, SPI, (UCHAR *)&typeack, sizeof(typeack));
+				usleep(10);
+
 				memset((unsigned char *)&m_fhead, 0, sizeof(NORBOOT_NAND_HEAD));
 				m_fhead.flag = WRITE_ACTION;
 				m_fhead.initSize = 0;
@@ -1078,9 +1104,9 @@ int UXmodem_SPINOR(int id)
 				case IMG_T_DATA:
 				case IMG_T_PACK:
 					m_fhead.no = 0;
-					m_fhead.execaddr = 0x200;
+					m_fhead.execaddr = _nudata.image[idx].image_exe_addr;
 					m_fhead.flashoffset = _nudata.image[idx].image_start_offset;
-					lpBuffer = (char *)malloc(sizeof(unsigned char)*file_len); //read file to buffer
+					lpBuffer = (char *)malloc(file_len); //read file to buffer
 					memset(lpBuffer, 0xff, file_len);
 					((NORBOOT_NAND_HEAD *)&m_fhead)->macaddr[7] = 0;
 					m_fhead.type = _nudata.image[idx].image_type;
@@ -1096,9 +1122,9 @@ int UXmodem_SPINOR(int id)
 						goto EXIT;
 					}
 
-					if (fread(lpBuffer, 1, m_fhead.filelen, fp) != m_fhead.filelen) {
+					if (fread(lpBuffer, 1, file_len, fp) != file_len) {
 						fclose(fp);
-						fprintf(stderr, "fjile length is longer\n");
+						fprintf(stderr, "file length is longer\n");
 						goto EXIT;
 					}
 					break;
@@ -1158,7 +1184,7 @@ int UXmodem_SPINOR(int id)
 					break;
 					
 				case IMG_T_LOADER:
-					m_fhead.no = 0;
+					m_fhead.no = 1;
 					m_fhead.execaddr = _nudata.image[idx].image_exe_addr;
 					m_fhead.flashoffset = 0;
 					ddrbuf = GetDDRFormat(&ddrlen);
@@ -1185,9 +1211,14 @@ int UXmodem_SPINOR(int id)
 					memcpy(lpBuffer, ddrbuf, ddrlen);
 					fread(lpBuffer + ddrlen, 1, m_fhead.filelen, fp);
 					break;
+					
+				default:
+					fprintf(stderr, "Unknow image type: %d!\n", _nudata.image[idx].image_type);
+					bResult = FALSE;
+					goto EXIT;
 				}
 				fclose(fp);
-#if 1
+
 				if (lpBuffer == NULL) {
 					fprintf(stderr, "%s %d - lpBuffer is NULL!\n", __func__, __LINE__);
 					goto EXIT;
@@ -1295,13 +1326,19 @@ int UXmodem_SPINOR(int id)
 					rcnt = (file_len - m_fhead.initSize) % BUF_SIZE;
 					total = 0;
 					while (scnt > 0) {
+						// fprintf(stdout, "scnt = %d\n", scnt);
 						bResult = NUC_ReadPipe(id, (unsigned char*)temp, BUF_SIZE);
 						if (bResult == TRUE) {
 							total += BUF_SIZE;
-							if (DataCompare(temp, pbuf, BUF_SIZE))
+							if (DataCompare(temp, pbuf, BUF_SIZE)) {
 								ack = BUF_SIZE;
-							else
+							} else {
 								ack = 0; //compare error
+								fprintf(stderr, "%s %d - data compare error!\n", __func__, __LINE__);
+								dump_buffer(temp, 128);
+								dump_buffer(pbuf, 128);
+								goto EXIT;
+							}
 							bResult = NUC_WritePipe(id, (unsigned char*)&ack, 4);
 							if (bResult == FALSE) {
 								fprintf(stderr,  "Verify image%d %s ... Failed\n", idx, TypeT[_nudata.image[idx].image_idx].pName);
@@ -1319,14 +1356,19 @@ int UXmodem_SPINOR(int id)
 					}
 
 					if (rcnt > 0) {
-						bResult = NUC_ReadPipe(id, (UCHAR *)temp, BUF_SIZE);
+						bResult = NUC_ReadPipe(id, (UCHAR *)temp, rcnt);
 						if (bResult == TRUE) {
 							total += rcnt;
-							ack = BUF_SIZE;
-							if (DataCompare(temp, pbuf, rcnt))
-								ack = BUF_SIZE;
-							else
+							if (DataCompare(temp, pbuf, rcnt)) {
+								ack = rcnt;
+							} else {
 								ack = 0; //compare error
+								fprintf(stderr, "%s %d - data compare error!\n", __func__, __LINE__);
+								dump_buffer(temp, 128);
+								dump_buffer(pbuf, 128);
+								goto EXIT;
+							}
+
 							bResult = NUC_WritePipe(id, (UCHAR *)&ack, 4);
 							if ((bResult == FALSE) || (!ack)) {
 								fprintf(stderr, "Verify image%d %s ... Failed\n",idx,TypeT[_nudata.image[idx].image_idx].pName);
@@ -1349,13 +1391,10 @@ int UXmodem_SPINOR(int id)
 				} //Verify_tag end
 
 				free(lpBuffer);
-#endif
 			}
 		}
 
 		if (_nudata.run == RUN_ERASE) {  //Erase SPI
-			int		wait_pos = 0;
-			unsigned int erase_pos = 0;
 			m_fhead.flag = ERASE_ACTION;
 			m_fhead.flashoffset = _nudata.erase.start_blocks; //start erase block
 			m_fhead.execaddr = _nudata.erase.offset_blocks;  //erase block length
@@ -1381,6 +1420,7 @@ int UXmodem_SPINOR(int id)
 				goto EXIT;
 			}
 			erase_pos = 0;
+			wait_pos = 0;
 			fprintf(stdout, "[%s] Erase ... \n", __func__);
 			// show_progressbar(erase_pos);
 			while (erase_pos != 100) {
@@ -1408,7 +1448,6 @@ int UXmodem_SPINOR(int id)
 	}
 	
 	fprintf(stdout, "[%s] done\n", __func__);
-
 	return 0;
 
 EXIT:
