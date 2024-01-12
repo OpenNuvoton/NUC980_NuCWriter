@@ -152,6 +152,8 @@ int ParseIniFile(char *inifile)
 				_nudata.erase.offset_blocks = n;
 			} else
 				_nudata.erase.offset_blocks = 0xffffffff;
+
+			printf("%s RUN_ERASE, %d ~ %d\n", ModeT[_nudata.mode.id].pName, _nudata.erase.start_blocks, _nudata.erase.offset_blocks);
 		}
 	}
 	fprintf(stdout, "ParsingIni END\n");

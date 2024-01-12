@@ -340,6 +340,21 @@ int main(int argc, char **argv)
 			fprintf(stderr, "USB connect failed! ERR: %d\n", GetLastError());
 			return ERR_CODE_USB_CONN;
 		}
+
+#if 1 /* Reset NUC980 anyway. If NUC980 is running xusb, this can make it return to IBR. */
+		bResult = WinUsb_ResetFW(0);
+		if (!bResult) {
+			fprintf(stderr, "failed to reset USB decide! ERR: %d\n", GetLastError());
+			return ERR_CODE_USB_CONN;
+		}
+		Sleep(1000);
+
+		bResult = EnableWinUsbDevice();
+		if (!bResult) {
+			fprintf(stderr, "USB connect failed! ERR: %d\n", GetLastError());
+			return ERR_CODE_USB_CONN;
+		}
+#endif
 		
 		if (_WinUsb.WinUsbNumber == 0) {
 			fprintf(stderr, "USB device not found! %d\n", GetLastError());
