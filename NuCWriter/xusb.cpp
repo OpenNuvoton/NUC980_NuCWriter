@@ -1854,7 +1854,8 @@ int UXmodem_SPINAND(int id)
 				m_fhead.no = 0xffffffff;//erase all
 			} else {
 				m_fhead.type = 1;
-				m_fhead.no = 0;
+				//m_fhead.no = 0;
+				m_fhead.no = 0xFFFFFFFF;  // 2024.01.22
 			}
 
 			bResult = NUC_WritePipe(id, (UCHAR *)&m_fhead, sizeof(NORBOOT_NAND_HEAD));
@@ -1874,7 +1875,7 @@ int UXmodem_SPINAND(int id)
 				goto EXIT;
 			}
 			erase_pos = 0;
-			fprintf(stdout, "Erase ...");
+			fprintf(stdout, "Erase ==>\n");
 			// show_progressbar(erase_pos);
 			while (erase_pos != 100) {
 				usleep(1);
@@ -1883,6 +1884,10 @@ int UXmodem_SPINAND(int id)
 					fprintf(stderr, "%s (%d) - NUC_ReadPipe failed %d.\n", __func__, id, __LINE__);
 					goto EXIT;
 				}
+				erase_pos = ack;
+				fprintf(stderr, "%d%c erased     \r", erase_pos, '%');
+#if 0
+				// fprintf(stderr, "ack=%d, erase_pos=%d, BlockPerFlash=%d !\n", ack, erase_pos, BlockPerFlash);
 				if (ack < BlockPerFlash)
 				{
 					erase_pos = (int)(((float)(((float)ack / (float)BlockPerFlash)) * 100));
@@ -1894,12 +1899,14 @@ int UXmodem_SPINAND(int id)
 					}
 
 				} else {
+					fprintf(stderr, "erase_pos=%d, BlockPerFlash=%d !\n", erase_pos, BlockPerFlash);
 					fprintf(stderr, "SPI NAND Erase error. ack=%d !\n",ack);
 					goto EXIT;
 				}
+#endif
 			}
 			// show_progressbar(100);
-			fprintf(stdout, "Erase ... Passed\n");
+			fprintf(stdout, "\nErase ... Passed\n");
 		}
 	}
 	return 0;
