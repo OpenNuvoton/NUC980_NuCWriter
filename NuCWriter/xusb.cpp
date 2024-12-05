@@ -1496,9 +1496,10 @@ int UXmodem_SPINAND(int id)
 			}
 			file_len = _nudata.read.offset_blocks * (_nudata.user_def.SPINand_PagePerBlock * _nudata.user_def.SPINand_PageSize);
 			m_fhead.flag = READ_ACTION;
-			m_fhead.flashoffset = _nudata.read.start_blocks * (_nudata.user_def.SPINand_PagePerBlock * _nudata.user_def.SPINand_PageSize);
+			m_fhead.flashoffset = _nudata.read.start_blocks;
 			m_fhead.filelen = file_len;
 			m_fhead.initSize = 0; //read good block
+
 			bResult = NUC_WritePipe(id, (UCHAR *)&m_fhead, sizeof(NORBOOT_NAND_HEAD));
 			if (bResult == FALSE) {
 				fprintf(stderr, "%s (%d) - NUC_WritePipe failed %d.\n", __func__, id, __LINE__);
